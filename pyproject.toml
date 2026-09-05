@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "doomforge-mastering"
+version = "0.1.0"
+description = "Open-source desktop mastering workstation for phone/live recordings with reference matching and Flet UI."
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Jose Cruz / DoomForge contributors" }]
+dependencies = [
+  "flet>=0.86.4,<0.87",
+  "flet-audio>=0.86.4,<0.87",
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "pedalboard>=0.9.24,<0.10",
+  "pyloudnorm>=0.2.0,<0.3",
+  "noisereduce>=3.0.0,<4",
+  "imageio-ffmpeg>=0.5.1,<0.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+doomforge = "doomforge.ui.app:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/doomforge"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
