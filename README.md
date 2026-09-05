@@ -4,6 +4,10 @@ Mastering desktop **open-source** para grabaciones difíciles —especialmente c
 
 > DoomForge puede mejorar balance, nivel, ruido moderado y dinámica. No puede reconstruir perfectamente información destruida por clipping del micrófono, sobrecarga analógica, viento severo o compresión con pérdida extrema.
 
+![DoomForge visual system](src/doomforge/assets/doomforge_hero.svg)
+
+La interfaz 0.2 adopta un layout de workstation compacto, métricas visibles, controles con valor numérico, arte original doom/stoner y assets locales para que el look no dependa de servicios externos.
+
 ## Qué incluye
 
 - Importación: WAV, FLAC, MP3, OGG, AIFF y, vía FFmpeg empaquetado por `imageio-ffmpeg`, M4A/AAC/WMA/OPUS/AC3/MP4 cuando el codec lo permite.
@@ -15,6 +19,8 @@ Mastering desktop **open-source** para grabaciones difíciles —especialmente c
 - Exportación: WAV, FLAC, MP3, OGG, M4A y AAC.
 - Presets: Phone Rescue / Live, Streaming Balanced, Doom / Heavy y Dynamic Archive.
 - Tooltips discretos con icono de información junto a los parámetros.
+- UI workstation compacta con diagnóstico visual, valores numéricos por control y arte DoomForge generado para el hero.
+- Manejo robusto de archivos temporales en Windows para evitar bloqueos de FFmpeg (`WinError 32`).
 - Tests y GitHub Actions.
 
 ## Stack abierto
@@ -29,7 +35,7 @@ El proyecto se distribuye como **GPL-3.0-or-later** para mantener compatibilidad
 
 ## Instalación rápida · Windows / VS Code
 
-Recomendado: Python 3.12 o 3.13.
+Recomendado: Python 3.11, 3.12 o 3.13.
 
 ```powershell
 git clone https://github.com/JoMagistelo/doomforge-mastering.git
@@ -57,7 +63,6 @@ doomforge
 ## Si recibiste el ZIP
 
 También puedes ejecutar `scripts\setup_windows.ps1` después de descomprimir.
-
 
 ```powershell
 Expand-Archive .\doomforge-mastering.zip .\
@@ -92,10 +97,6 @@ No son leyes:
 ## Antes de DoomForge: REAPER
 
 Lee [`docs/REAPER_PREP.md`](docs/REAPER_PREP.md). La idea es editar/restaurar en REAPER y dejar el mastering final a DoomForge.
-
-## Publicarlo en tu GitHub
-
-Consulta [`PUBLISH_TO_GITHUB.md`](PUBLISH_TO_GITHUB.md). Incluye los comandos con `gh repo create` y el clone posterior desde VS Code.
 
 ## Tests
 
