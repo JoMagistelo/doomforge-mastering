@@ -26,17 +26,74 @@ def ffmpeg_executable() -> str:
         raise RuntimeError("No se encontró FFmpeg ni el binario de imageio-ffmpeg.")
 
 
+def _new_temp_wav(prefix: str) -> Path:
+    """Create a temporary WAV path with its OS handle already closed.
+
+    ``tempfile.mkstemp`` returns an open file descriptor.  Keeping that handle
+    alive prevents FFmpeg and libsndfile from reopening the file on Windows
+    (WinError 32).  NamedTemporaryFile used as a context manager gives us the
+    same unique-path guarantee and closes the handle before returning.
+    """
+    with tempfile.NamedTemporaryFile(prefix=prefix, suffix=".wav", delete=False) as handle:
+        return Path(handle.name)
+
+
+def _run_ffmpeg(cmd: list[str], *, operation: str) -> None:
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "").strip()
+        if detail:
+            raise RuntimeError(f"FFmpeg no pudo {operation}: {detail}") from exc
+        raise RuntimeError(f"FFmpeg no pudo {operation} (código {exc.returncode}).") from exc
+
+
 def _decode_with_ffmpeg(path: Path) -> Path:
-    temp = Path(tempfile.mkstemp(prefix="doomforge_decode_", suffix=".wav")[1])
+    temp = _new_temp_wav("doomforge_decode_")
     cmd = [
-        ffmpeg_executable(), "-y", "-hide_banner", "-loglevel", "error",
-        "-i", str(path), "-vn", "-c:a", "pcm_f32le", str(temp),
+        ffmpeg_executable(),
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(path),
+        "-vn",
+        "-c:a",
+        "pcm_f32le",
+        str(temp),
     ]
-    subprocess.run(cmd, check=True, capture_output=True)
-    return temp
+    try:
+        _run_ffmpeg(cmd, operation=f"decodificar {path.name}")
+        return temp
+    except Exception:
+        temp.unlink(missing_ok=True)
+        raise
 
 
-def read_audio(path: str | Path, *, start_s: float | None = None, duration_s: float | None = None) -> tuple[np.ndarray, int]:
+def _read_from_audiofile(
+    decode_path: Path,
+    *,
+    start_s: float | None,
+    duration_s: float | None,
+) -> tuple[np.ndarray, int]:
+    with AudioFile(str(decode_path)) as f:
+        sr = int(f.samplerate)
+        if start_s:
+            f.seek(int(max(0.0, start_s) * sr))
+        frames = f.frames - f.tell()
+        if duration_s is not None:
+            frames = min(frames, int(max(0.0, duration_s) * sr))
+        audio = f.read(max(0, frames))
+    return audio, sr
+
+
+def read_audio(
+    path: str | Path,
+    *,
+    start_s: float | None = None,
+    duration_s: float | None = None,
+) -> tuple[np.ndarray, int]:
     path = Path(path)
     decode_path = path
     temp: Path | None = None
@@ -45,27 +102,21 @@ def read_audio(path: str | Path, *, start_s: float | None = None, duration_s: fl
             temp = _decode_with_ffmpeg(path)
             decode_path = temp
         try:
-            with AudioFile(str(decode_path)) as f:
-                sr = int(f.samplerate)
-                if start_s:
-                    f.seek(int(max(0.0, start_s) * sr))
-                frames = f.frames - f.tell()
-                if duration_s is not None:
-                    frames = min(frames, int(max(0.0, duration_s) * sr))
-                audio = f.read(max(0, frames))
+            audio, sr = _read_from_audiofile(
+                decode_path,
+                start_s=start_s,
+                duration_s=duration_s,
+            )
         except Exception:
-            if temp is None:
-                temp = _decode_with_ffmpeg(path)
-                with AudioFile(str(temp)) as f:
-                    sr = int(f.samplerate)
-                    if start_s:
-                        f.seek(int(max(0.0, start_s) * sr))
-                    frames = f.frames - f.tell()
-                    if duration_s is not None:
-                        frames = min(frames, int(max(0.0, duration_s) * sr))
-                    audio = f.read(max(0, frames))
-            else:
+            if temp is not None:
                 raise
+            temp = _decode_with_ffmpeg(path)
+            audio, sr = _read_from_audiofile(
+                temp,
+                start_s=start_s,
+                duration_s=duration_s,
+            )
+
         audio = np.asarray(audio, dtype=np.float32)
         if audio.ndim == 1:
             audio = audio[np.newaxis, :]
@@ -108,7 +159,7 @@ def write_audio(path: str | Path, audio: np.ndarray, sr: int) -> Path:
         _write_native(path, audio, sr)
         return path
 
-    temp_wav = Path(tempfile.mkstemp(prefix="doomforge_encode_", suffix=".wav")[1])
+    temp_wav = _new_temp_wav("doomforge_encode_")
     try:
         _write_native(temp_wav, audio, sr)
         codec_args = {
@@ -116,10 +167,17 @@ def write_audio(path: str | Path, audio: np.ndarray, sr: int) -> Path:
             ".aac": ["-c:a", "aac", "-b:a", "256k"],
         }[ext]
         cmd = [
-            ffmpeg_executable(), "-y", "-hide_banner", "-loglevel", "error",
-            "-i", str(temp_wav), *codec_args, str(path),
+            ffmpeg_executable(),
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(temp_wav),
+            *codec_args,
+            str(path),
         ]
-        subprocess.run(cmd, check=True, capture_output=True)
+        _run_ffmpeg(cmd, operation=f"codificar {path.name}")
         return path
     finally:
         temp_wav.unlink(missing_ok=True)
